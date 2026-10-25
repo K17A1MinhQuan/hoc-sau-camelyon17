@@ -23,6 +23,22 @@ from evaluate import evaluate
 
 RESULTS_DIR = "results"
 
+
+def _atomic_torch_save(obj, path):
+    """Ghi vào file tạm rồi replace để giảm nguy cơ checkpoint bị ghi dở."""
+    os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+    temp_path = path + ".tmp"
+    try:
+        torch.save(obj, temp_path)
+        os.replace(temp_path, path)
+    finally:
+        if os.path.exists(temp_path):
+            try:
+                os.remove(temp_path)
+            except OSError:
+                pass
+
+
 # Cấu hình thí nghiệm
 EXPERIMENT_CONFIGS = {
     "erm":           {"method": "erm",       "augmentation": False},
@@ -175,7 +191,7 @@ def run_experiment(run_name, config, seed, epochs, batch_size, lr, data_dir, dev
                 # Checkpoint selection: best ID validation accuracy
                 if id_val_metrics["accuracy"] > best_id_val_acc:
                     best_id_val_acc = id_val_metrics["accuracy"]
-                    torch.save(model.state_dict(), checkpoint_path)
+                    _atomic_torch_save(model.state_dict(), checkpoint_path)
                     print(f"  ✓ Saved best checkpoint (ID val acc={best_id_val_acc:.4f})")
 
                 # Lưu latest checkpoint sau mỗi epoch để hỗ trợ resume
@@ -187,7 +203,7 @@ def run_experiment(run_name, config, seed, epochs, batch_size, lr, data_dir, dev
                     "best_id_val_acc": best_id_val_acc,
                     "history": history,
                 }
-                torch.save(latest_ckpt, latest_path)
+                _atomic_torch_save(latest_ckpt, latest_path)
                 print(f"  ✓ Đã lưu checkpoint epoch {epoch} vào {latest_path}")
 
                 # Giải phóng bộ nhớ GPU đệm sau mỗi epoch
