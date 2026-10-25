@@ -1,0 +1,11 @@
+HƯỚNG DẪN CHẠY — Camelyon17-WILDS
+
+1. Cài thư viện: pip install -r requirements.txt
+2. Colab: mount Google Drive và xác nhận /content/drive/MyDrive/camelyon17_v1.0.tar.gz tồn tại.
+3. Chạy:
+   python experiments.py --epochs 5 --batch-size 16 --runs erm --archive-path /content/drive/MyDrive/camelyon17_v1.0.tar.gz
+4. Resume:
+   python experiments.py --epochs 10 --batch-size 16 --runs erm --resume
+5. Checkpoint *_latest.pt lưu optimizer, epoch và lịch sử; *_best.pth chỉ lưu model weights.
+6. Nếu latest checkpoint hỏng, không xóa bản gốc ngay. Sao lưu trước; chương trình mới sẽ cảnh báo và thử fallback.
+7. Không tải dataset/checkpoint vào GitHub. Lưu chúng trên Drive hoặc ổ đĩa riêng.
