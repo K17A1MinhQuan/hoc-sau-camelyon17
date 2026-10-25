@@ -42,7 +42,7 @@ def set_seed(seed):
         torch.backends.cudnn.benchmark = True
 
 
-def run_experiment(run_name, config, seed, epochs, batch_size, lr, data_dir, device, resume=False, custom_start_epoch=None, num_workers=0):
+def run_experiment(run_name, config, seed, epochs, batch_size, lr, data_dir, device, resume=False, custom_start_epoch=None, num_workers=0, archive_path=None):
     """Chạy một thí nghiệm đầy đủ: train → validate → test."""
     print(f"\n{'='*60}")
     print(f"  {run_name}  |  seed={seed}  |  epochs={epochs}  |  device={device}")
@@ -56,6 +56,7 @@ def run_experiment(run_name, config, seed, epochs, batch_size, lr, data_dir, dev
         use_augmentation=config["augmentation"],
         data_dir=data_dir,
         num_workers=num_workers,
+        archive_path=archive_path,
     )
 
     # Model & Optimizer
@@ -93,7 +94,12 @@ def run_experiment(run_name, config, seed, epochs, batch_size, lr, data_dir, dev
             print(f"  ! Checkpoint latest bị lỗi/không tương thích: {exc}")
             print("  ! Bỏ qua latest và thử tìm best checkpoint. Hãy sao lưu file lỗi để kiểm tra.")
             resume = True
-            latest_path = None
+            # Đổi tên file lỗi để fallback hoạt động; vẫn giữ file để kiểm tra sau.
+            try:
+                os.replace(latest_path, latest_path + ".corrupt")
+                print(f"  ! Đã giữ checkpoint lỗi tại {latest_path}.corrupt")
+            except OSError as rename_exc:
+                print(f"  ! Không đổi tên được checkpoint lỗi: {rename_exc}")
     if resume and (not os.path.exists(latest_path) if latest_path else True):
         # Fallback: kiểm tra file _best.pth ở results/ hoặc thư mục gốc
         best_candidate = None
@@ -337,6 +343,8 @@ def main():
     parser.add_argument("--runs", type=str, nargs="+", default=["erm"],
                         choices=list(EXPERIMENT_CONFIGS.keys()))
     parser.add_argument("--data-dir", type=str, default="data")
+    parser.add_argument("--archive-path", type=str, default=None,
+                        help="Đường dẫn archive Camelyon17 .tar.gz có sẵn (ví dụ trên Google Drive)")
     parser.add_argument("--resume", action="store_true",
                         help="Resume training from the latest checkpoint if available")
     parser.add_argument("--start-epoch", type=int, default=None,
@@ -361,6 +369,7 @@ def main():
                 args.lr, args.data_dir, device, resume=args.resume,
                 custom_start_epoch=args.start_epoch,
                 num_workers=args.num_workers,
+                archive_path=args.archive_path,
             )
             all_results.append(result)
             all_histories[f"{run_name}_seed{seed}"] = history
