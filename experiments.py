@@ -21,7 +21,7 @@ from train import train_one_epoch_erm, train_one_epoch_group_dro
 from evaluate import evaluate
 
 
-RESULTS_DIR = "results"
+RESULTS_DIR = "/content/drive/MyDrive/hoc-sau-results"
 
 
 def _atomic_torch_save(obj, path):
