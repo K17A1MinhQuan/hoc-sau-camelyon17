@@ -220,7 +220,7 @@ def run_experiment(run_name, config, seed, epochs, batch_size, lr, data_dir, dev
             "best_id_val_acc": best_id_val_acc,
             "history": history,
         }
-        torch.save(latest_ckpt, latest_path)
+        _atomic_torch_save(latest_ckpt, latest_path)
         print(f"  ✓ Đã lưu trạng thái an toàn vào {latest_path}. Bạn có thể tiếp tục với --resume bất cứ lúc nào.")
         raise
 
