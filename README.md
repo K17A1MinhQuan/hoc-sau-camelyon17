@@ -144,19 +144,19 @@ File này thực hiện một epoch huấn luyện và hỗ trợ hai phương p
 
 ERM tối thiểu hóa loss trung bình trên các mẫu huấn luyện:
 
-\[
+$
 R_{\mathrm{ERM}}(\theta)
 =
 \frac{1}{N}\sum_{i=1}^{N}
 \ell(f_\theta(x_i),y_i)
-\]
+$
 
 Trong đó:
 
-- \(x_i\): ảnh đầu vào.
-- \(y_i\): nhãn thực tế.
-- \(f_\theta\): mô hình với tham số \(\theta\).
-- \(\ell\): hàm loss, sử dụng Cross Entropy.
+- $x_i$: ảnh đầu vào.
+- $y_i$: nhãn thực tế.
+- $f_\theta$: mô hình với tham số $\theta$.
+- $\ell$: hàm loss, sử dụng Cross Entropy.
 
 ERM đóng vai trò baseline để đo ảnh hưởng của domain shift.
 
@@ -164,13 +164,13 @@ ERM đóng vai trò baseline để đo ảnh hưởng của domain shift.
 
 Group DRO hướng đến việc giảm loss trên các domain khó:
 
-\[
+$
 R_{\mathrm{DRO}}(\theta)
 =
 \max_{g\in\mathcal G}R_g(\theta)
-\]
+$
 
-Trong đó \(R_g\) là loss trung bình của domain \(g\).
+Trong đó $R_g$ là loss trung bình của domain $g$.
 
 Triển khai sử dụng trọng số domain được cập nhật dựa trên loss của các nhóm trong batch. Những domain có loss cao được tăng trọng số để ảnh hưởng nhiều hơn đến mục tiêu huấn luyện.
 
@@ -188,9 +188,9 @@ Các chỉ số chính:
 
 Tỷ lệ mẫu được phân loại chính xác:
 
-\[
+$
 Accuracy=\frac{TP+TN}{TP+TN+FP+FN}
-\]
+$
 
 **AUROC**
 
@@ -204,18 +204,18 @@ Accuracy=\frac{TP+TN}{TP+TN+FP+FN}
 
 Tính loss trung bình của từng domain rồi lấy trung bình giữa các domain:
 
-\[
+$
 R_{\mathrm{avg}}=
 \frac{1}{G}\sum_{g=1}^{G}R_g
-\]
+$
 
 **Worst-Domain Risk**
 
 Loss cao nhất trong các domain được đánh giá:
 
-\[
+$
 R_{\mathrm{worst}}=\max_g R_g
-\]
+$
 
 Các chỉ số theo domain cho phép kiểm tra xem hiệu suất trung bình có che giấu một bệnh viện có kết quả đặc biệt kém hay không.
 
@@ -380,48 +380,48 @@ Chỉ resume khi cấu hình thí nghiệm, seed và mô hình khớp với chec
 Để giảm nguy cơ file checkpoint bị ghi dở, chương trình ghi ra file tạm rồi mới thay thế file đích. Nếu đang dùng Google Drive và kết nối không ổn định, nên lưu checkpoint trên ổ đĩa local trước rồi sao chép file hoàn chỉnh sang Drive.
 
 
-## 8. Phương pháp thực nghiệm
+## 7. Phương pháp thực nghiệm
 
-### 8.1. Q1 — Performance loss do domain shift
+### 7.1. Q1 — Performance loss do domain shift
 
 Sử dụng baseline ERM và so sánh hiệu suất ID với OOD:
 
-\[
+$
 Gap_{\mathrm{acc}}
 =
 Acc_{\mathrm{ID}}-Acc_{\mathrm{OOD}}
-\]
+$
 
 Đồng thời báo cáo suy giảm tương đối:
 
-\[
+$
 Loss_{\mathrm{relative}}
 =
 \frac{Acc_{\mathrm{ID}}-Acc_{\mathrm{OOD}}}
 {Acc_{\mathrm{ID}}}\times100\%
-\]
+$
 
 Gap dương cho thấy Accuracy trên OOD thấp hơn ID. Tuy nhiên, gap không tự chứng minh domain shift là nguyên nhân duy nhất.
 
-### 8.2. Q2 — Hiệu quả của Data Augmentation
+### 7.2. Q2 — Hiệu quả của Data Augmentation
 
 So sánh `erm` và `erm_aug`.
 
 Chỉ số quan trọng nhất là sự thay đổi OOD Accuracy:
 
-\[
+$
 \Delta_{\mathrm{OOD}}
 =
 Acc_{\mathrm{OOD,aug}}
 -
 Acc_{\mathrm{OOD,baseline}}
-\]
+$
 
 Nếu giá trị dương, augmentation cải thiện OOD Accuracy trong thí nghiệm đó.
 
 Cần đồng thời báo cáo ID Accuracy, AUROC và độ biến thiên qua nhiều seed.
 
-### 8.3. Q3 — Average Risk hay Worst-Domain Risk
+### 7.3. Q3 — Average Risk hay Worst-Domain Risk
 
 So sánh `erm` với `group_dro`.
 
@@ -434,7 +434,7 @@ Các chỉ số chính:
 
 Group DRO có thể cải thiện domain khó nhưng không bảo đảm luôn đạt kết quả OOD tốt hơn. Đây là giả thuyết cần kiểm chứng bằng thực nghiệm.
 
-## 9. Quy tắc đánh giá công bằng
+## 8. Quy tắc đánh giá công bằng
 
 1. Sử dụng các split chính thức của WILDS.
 2. Không sử dụng test để lựa chọn siêu tham số.
@@ -444,7 +444,7 @@ Group DRO có thể cải thiện domain khó nhưng không bảo đảm luôn �
 6. Kiểm tra metadata bệnh viện và cách ánh xạ group ID trước khi chạy Group DRO.
 7. Ghi rõ cấu hình, phiên bản thư viện và cách lựa chọn checkpoint trong báo cáo.
 
-## 10. Kết quả cần trình bày
+## 9. Kết quả cần trình bày
 
 Bảng tổng hợp nên có cấu trúc như sau:
 
@@ -463,7 +463,7 @@ Nên tạo thêm ba biểu đồ:
 2. Training loss và validation loss theo epoch.
 3. Loss hoặc Accuracy của từng bệnh viện.
 
-## 11. Giới hạn của dự án
+## 10. Giới hạn của dự án
 
 - Kết quả phụ thuộc vào cách chia domain, random seed và cấu hình huấn luyện.
 - Augmentation có thể không phản ánh đầy đủ sự khác biệt thực tế giữa các bệnh viện.
@@ -474,13 +474,13 @@ Nên tạo thêm ba biểu đồ:
 Đây là project nghiên cứu học thuật về độ bền vững và khả năng tổng quát hóa của mô hình, không phải hệ thống chẩn đoán lâm sàng.
 
 
-## 12. Quy tắc quản lý dữ liệu và mã nguồn
+## 11. Quy tắc quản lý dữ liệu và mã nguồn
 
 Không đưa dataset Camelyon17, ảnh mô bệnh học, checkpoint lớn, log hoặc thông tin nhạy cảm lên GitHub. Chỉ lưu mã nguồn, cấu hình và tài liệu hướng dẫn trong repository. Dataset cần được quản lý riêng theo điều khoản sử dụng của nguồn dữ liệu.
 
 File `.gitignore` trong repository được cấu hình để loại trừ dữ liệu và checkpoint phổ biến. Trước khi commit, hãy kiểm tra danh sách file được Git theo dõi, đặc biệt nếu dataset hoặc checkpoint từng được thêm vào repo trước đó.
 
-## 13. Tài liệu tham khảo
+## 12. Tài liệu tham khảo
 
 1. Koh et al. (2021), *WILDS: A Benchmark of in-the-Wild Distribution Shifts*. Proceedings of ICML.
    https://proceedings.mlr.press/v139/koh21a.html
