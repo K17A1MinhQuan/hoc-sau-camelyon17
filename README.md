@@ -144,16 +144,13 @@ File này thực hiện một epoch huấn luyện và hỗ trợ hai phương p
 
 ERM tối thiểu hóa loss trung bình trên các mẫu huấn luyện:
 
-$$
-R_{\mathrm{ERM}}(\theta) = \frac{1}{N}\sum_{i=1}^{N} \ell(f_\theta(x_i),y_i)
-
-$$
+**Công thức:** `R_{\mathrm{ERM}}(\theta) = \frac{1}{N}\sum_{i=1}^{N} \ell(f_\theta(x_i),y_i)`
 Trong đó:
 
-- $x_i$: ảnh đầu vào.
-- $y_i$: nhãn thực tế.
-- $f_\theta$: mô hình với tham số $\theta$.
-- $\ell$: hàm loss, sử dụng Cross Entropy.
+- `x_i`: ảnh đầu vào.
+- `y_i`: nhãn thực tế.
+- `f_\theta`: mô hình với tham số `\theta`.
+- `\ell`: hàm loss, sử dụng Cross Entropy.
 
 ERM đóng vai trò baseline để đo ảnh hưởng của domain shift.
 
@@ -161,11 +158,8 @@ ERM đóng vai trò baseline để đo ảnh hưởng của domain shift.
 
 Group DRO hướng đến việc giảm loss trên các domain khó:
 
-$$
-R_{\mathrm{DRO}}(\theta) = \max_{g\in\mathcal G}R_g(\theta)
-
-$$
-Trong đó $R_g$ là loss trung bình của domain $g$.
+**Công thức:** `R_{\mathrm{DRO}}(\theta) = \max_{g\in\mathcal G}R_g(\theta)`
+Trong đó `R_g` là loss trung bình của domain `g`.
 
 Triển khai sử dụng trọng số domain được cập nhật dựa trên loss của các nhóm trong batch. Những domain có loss cao được tăng trọng số để ảnh hưởng nhiều hơn đến mục tiêu huấn luyện.
 
@@ -183,10 +177,7 @@ Các chỉ số chính:
 
 Tỷ lệ mẫu được phân loại chính xác:
 
-$$
-Accuracy=\frac{TP+TN}{TP+TN+FP+FN}
-
-$$
+**Công thức:** `Accuracy=\frac{TP+TN}{TP+TN+FP+FN}`
 **AUROC**
 
 Đánh giá khả năng phân biệt hai lớp trên nhiều ngưỡng dự đoán.
@@ -199,18 +190,12 @@ $$
 
 Tính loss trung bình của từng domain rồi lấy trung bình giữa các domain:
 
-$$
-R_{\mathrm{avg}}= \frac{1}{G}\sum_{g=1}^{G}R_g
-
-$$
+**Công thức:** `R_{\mathrm{avg}}= \frac{1}{G}\sum_{g=1}^{G}R_g`
 **Worst-Domain Risk**
 
 Loss cao nhất trong các domain được đánh giá:
 
-$$
-R_{\mathrm{worst}}=\max_g R_g
-
-$$
+**Công thức:** `R_{\mathrm{worst}}=\max_g R_g`
 Các chỉ số theo domain cho phép kiểm tra xem hiệu suất trung bình có che giấu một bệnh viện có kết quả đặc biệt kém hay không.
 
 Lưu ý: đánh giá worst-domain trên OOD chỉ mang ý nghĩa mô tả kết quả. Không được sử dụng nhãn OOD test để điều chỉnh mô hình.
@@ -323,7 +308,6 @@ Lần chạy đầu tiên cần tải dữ liệu và có thể tải trọng s�
 
 Các cấu hình trên là cấu hình khởi đầu để kiểm tra pipeline, không phải mặc định tối ưu cho benchmark.
 
-
 ### 6.6. Sử dụng archive Camelyon17 đã có trên Google Drive (Google Colab)
 
 Nếu đã có file `camelyon17_v1.0.tar.gz` trên Google Drive, hãy kiểm tra file trước khi chạy để tránh tải lại archive lớn.
@@ -373,23 +357,16 @@ Chỉ resume khi cấu hình thí nghiệm, seed và mô hình khớp với chec
 
 Để giảm nguy cơ file checkpoint bị ghi dở, chương trình ghi ra file tạm rồi mới thay thế file đích. Nếu đang dùng Google Drive và kết nối không ổn định, nên lưu checkpoint trên ổ đĩa local trước rồi sao chép file hoàn chỉnh sang Drive.
 
-
 ## 7. Phương pháp thực nghiệm
 
 ### 7.1. Q1 — Performance loss do domain shift
 
 Sử dụng baseline ERM và so sánh hiệu suất ID với OOD:
 
-$$
-Gap_{\mathrm{acc}} = Acc_{\mathrm{ID}}-Acc_{\mathrm{OOD}}
-
-$$
+**Công thức:** `Gap_{\mathrm{acc}} = Acc_{\mathrm{ID}}-Acc_{\mathrm{OOD}}`
 Đồng thời báo cáo suy giảm tương đối:
 
-$$
-Loss_{\mathrm{relative}} = \frac{Acc_{\mathrm{ID}}-Acc_{\mathrm{OOD}}} {Acc_{\mathrm{ID}}}\times100\%
-
-$$
+**Công thức:** `Loss_{\mathrm{relative}} = \frac{Acc_{\mathrm{ID}}-Acc_{\mathrm{OOD}}} {Acc_{\mathrm{ID}}}\times100\%`
 Gap dương cho thấy Accuracy trên OOD thấp hơn ID. Tuy nhiên, gap không tự chứng minh domain shift là nguyên nhân duy nhất.
 
 ### 7.2. Q2 — Hiệu quả của Data Augmentation
@@ -398,10 +375,7 @@ So sánh `erm` và `erm_aug`.
 
 Chỉ số quan trọng nhất là sự thay đổi OOD Accuracy:
 
-$$
-\Delta_{\mathrm{OOD}} = Acc_{\mathrm{OOD,aug}} - Acc_{\mathrm{OOD,baseline}}
-
-$$
+**Công thức:** `\Delta_{\mathrm{OOD}} = Acc_{\mathrm{OOD,aug}} - Acc_{\mathrm{OOD,baseline}}`
 Nếu giá trị dương, augmentation cải thiện OOD Accuracy trong thí nghiệm đó.
 
 Cần đồng thời báo cáo ID Accuracy, AUROC và độ biến thiên qua nhiều seed.
@@ -457,7 +431,6 @@ Nên tạo thêm ba biểu đồ:
 - Kết quả trên Camelyon17 không thể tự động khái quát sang các bài toán y tế khác.
 
 Đây là project nghiên cứu học thuật về độ bền vững và khả năng tổng quát hóa của mô hình, không phải hệ thống chẩn đoán lâm sàng.
-
 
 ## 11. Quy tắc quản lý dữ liệu và mã nguồn
 
