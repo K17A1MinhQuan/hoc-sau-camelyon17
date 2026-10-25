@@ -148,7 +148,6 @@ $
 R_{\mathrm{ERM}}(\theta) = \frac{1}{N}\sum_{i=1}^{N} \ell(f_\theta(x_i),y_i)
 
 $
-
 Trong đó:
 
 - $x_i$: ảnh đầu vào.
@@ -166,7 +165,6 @@ $
 R_{\mathrm{DRO}}(\theta) = \max_{g\in\mathcal G}R_g(\theta)
 
 $
-
 Trong đó $R_g$ là loss trung bình của domain $g$.
 
 Triển khai sử dụng trọng số domain được cập nhật dựa trên loss của các nhóm trong batch. Những domain có loss cao được tăng trọng số để ảnh hưởng nhiều hơn đến mục tiêu huấn luyện.
@@ -189,7 +187,6 @@ $
 Accuracy=\frac{TP+TN}{TP+TN+FP+FN}
 
 $
-
 **AUROC**
 
 Đánh giá khả năng phân biệt hai lớp trên nhiều ngưỡng dự đoán.
@@ -206,7 +203,6 @@ $
 R_{\mathrm{avg}}= \frac{1}{G}\sum_{g=1}^{G}R_g
 
 $
-
 **Worst-Domain Risk**
 
 Loss cao nhất trong các domain được đánh giá:
@@ -215,7 +211,6 @@ $
 R_{\mathrm{worst}}=\max_g R_g
 
 $
-
 Các chỉ số theo domain cho phép kiểm tra xem hiệu suất trung bình có che giấu một bệnh viện có kết quả đặc biệt kém hay không.
 
 Lưu ý: đánh giá worst-domain trên OOD chỉ mang ý nghĩa mô tả kết quả. Không được sử dụng nhãn OOD test để điều chỉnh mô hình.
@@ -387,14 +382,12 @@ $
 Gap_{\mathrm{acc}} = Acc_{\mathrm{ID}}-Acc_{\mathrm{OOD}}
 
 $
-
 Đồng thời báo cáo suy giảm tương đối:
 
 $
 Loss_{\mathrm{relative}} = \frac{Acc_{\mathrm{ID}}-Acc_{\mathrm{OOD}}} {Acc_{\mathrm{ID}}}\times100\%
 
 $
-
 Gap dương cho thấy Accuracy trên OOD thấp hơn ID. Tuy nhiên, gap không tự chứng minh domain shift là nguyên nhân duy nhất.
 
 ### 7.2. Q2 — Hiệu quả của Data Augmentation
@@ -407,7 +400,6 @@ $
 \Delta_{\mathrm{OOD}} = Acc_{\mathrm{OOD,aug}} - Acc_{\mathrm{OOD,baseline}}
 
 $
-
 Nếu giá trị dương, augmentation cải thiện OOD Accuracy trong thí nghiệm đó.
 
 Cần đồng thời báo cáo ID Accuracy, AUROC và độ biến thiên qua nhiều seed.
