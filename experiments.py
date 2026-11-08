@@ -191,10 +191,10 @@ def run_experiment(
         "test": evaluate(model, splits["test"], device, n_groups, hospital_idx),
     }
     val4 = evaluate_validation_domains(
-        model, splits, device, n_groups, hospital_idx, seen=train_groups.tolist()
+        model, splits, device, n_groups, hospital_idx, seen=train_groups.tolist(), parts=parts
     )
     all5 = evaluate_all_hospitals(
-        model, splits, device, n_groups, hospital_idx, seen=train_groups.tolist()
+        model, splits, device, n_groups, hospital_idx, seen=train_groups.tolist(), parts=parts
     )
     history_path.write_text(json.dumps(json_safe(history), indent=2), encoding="utf-8")
     row = flatten_metrics(run_name, seed, parts, val4, all5)
