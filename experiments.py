@@ -110,6 +110,14 @@ def run_experiment(
     best_id_acc = -1.0
     start_epoch = 1
 
+    expected_run_config = {
+        "method": EXPERIMENT_CONFIGS[run_name]["method"],
+        "augmentation": EXPERIMENT_CONFIGS[run_name]["augmentation"],
+        "batch_size": args.batch_size,
+        "lr": args.lr,
+        "training_impl_version": 2,
+    }
+
     if evaluate_only:
         source = Path(args.checkpoint_dir) / f"{tag}_best.pth"
         if not source.exists():
@@ -124,6 +132,13 @@ def run_experiment(
     else:
         if args.resume and latest_path.exists():
             checkpoint = torch.load(latest_path, map_location=device, weights_only=False)
+            saved_config = checkpoint.get("run_config")
+            if saved_config != expected_run_config:
+                raise RuntimeError(
+                    f"Checkpoint {latest_path} không có run_config tương thích. "
+                    "Không resume checkpoint cũ/khác augmentation hoặc khác GroupDRO implementation; "
+                    "hãy giữ checkpoint cũ làm legacy và bắt đầu run corrected mới."
+                )
             model.load_state_dict(checkpoint["model_state_dict"])
             optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
             history = checkpoint.get("history", history)
@@ -166,6 +181,7 @@ def run_experiment(
 
                 atomic_torch_save({
                     "epoch": epoch,
+                    "run_config": expected_run_config,
                     "model_state_dict": model.state_dict(),
                     "optimizer_state_dict": optimizer.state_dict(),
                     "group_weights": group_weights.detach().cpu() if run_name.startswith("group_dro") else None,
