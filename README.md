@@ -525,14 +525,14 @@ assert Path('/content/hoc-sau-camelyon17/data/camelyon17_v1.0/patches').exists()
 print(RESULTS)
 ```
 
-Resume run GroupDRO seed 2026 đến tổng 15 epochs:
+Với checkpoint được tạo bằng phiên bản code mới (có run_config tương thích), có thể resume đến tổng 15 epochs:
 
 ```bash
 %cd /content/hoc-sau-camelyon17
 !python experiments.py --epochs 15 --batch-size 16 --runs group_dro --seeds 2026 --resume --data-dir /content/hoc-sau-camelyon17/data --results-dir /content/drive/MyDrive/hoc-sau-results
 ```
 
-Nếu checkpoint ở epoch 7, chương trình tiếp tục epoch 8; nếu đã ở epoch 15, chương trình bỏ qua training và đánh giá best checkpoint. Sau đó chạy:
+Nếu checkpoint mới ở epoch 7, chương trình tiếp tục epoch 8; nếu đã ở epoch 15, chương trình bỏ qua training và đánh giá best checkpoint. Checkpoint legacy thiếu run_config sẽ bị từ chối resume có chủ đích; hãy làm theo mục 13.1 để sao lưu rồi train corrected từ đầu. Sau đó chạy:
 
 ```bash
 !python analysis.py --results-dir /content/drive/MyDrive/hoc-sau-results
