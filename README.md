@@ -53,7 +53,9 @@ Dự án sử dụng các split do WILDS cung cấp.
 | `train` | Huấn luyện mô hình |
 | `id_val` | Đánh giá trên dữ liệu cùng phân phối |
 | `val` | Đánh giá OOD validation |
-| `test` | Đánh giá cuối cùng theo benchmark |
+| `test` | Hospital 2; đánh giá cuối cùng, chỉ báo cáo, không dùng chọn mô hình |
+
+Theo cấu hình Camelyon17-WILDS 2.0.0, `train` và `id_val` chứa hospital 0, 3, 4; `val` chứa hospital 1; `test` chứa hospital 2. Project gộp kết quả để phân tích 5 hospital, nhưng vẫn giữ vai trò riêng của từng split.
 
 Cần kiểm tra tài liệu của phiên bản WILDS đang sử dụng để xác nhận ý nghĩa chính xác của từng split.
 
@@ -292,31 +294,31 @@ Nếu kết quả là `True`, PyTorch có thể nhận GPU trong môi trường 
 ### 6.1. Chạy baseline ERM
 
 ```bash
-python experiments.py --epochs 5 --batch-size 16 --runs erm
+python experiments.py --epochs 5 --batch-size 16 --runs erm --results-dir results/corrected_v1
 ```
 
 ### 6.2. Chạy ERM với Data Augmentation
 
 ```bash
-python experiments.py --epochs 5 --batch-size 16 --runs erm_aug
+python experiments.py --epochs 5 --batch-size 16 --runs erm_aug --results-dir results/corrected_v1
 ```
 
 ### 6.3. Chạy Group DRO
 
 ```bash
-python experiments.py --epochs 5 --batch-size 16 --runs group_dro
+python experiments.py --epochs 5 --batch-size 16 --runs group_dro --results-dir results/corrected_v1
 ```
 
 ### 6.4. Chạy tất cả các thí nghiệm
 
 ```bash
-python experiments.py --epochs 5 --batch-size 16 --runs erm erm_aug group_dro group_dro_aug
+python experiments.py --epochs 5 --batch-size 16 --runs erm erm_aug group_dro group_dro_aug --results-dir results/corrected_v1
 ```
 
 ### 6.5. Chạy nhiều random seeds
 
 ```bash
-python experiments.py --epochs 5 --batch-size 16 --seeds 42 123 2026 --runs erm erm_aug group_dro group_dro_aug
+python experiments.py --epochs 5 --batch-size 16 --seeds 42 123 2026 --runs erm erm_aug group_dro group_dro_aug --results-dir results/corrected_v1
 ```
 
 Lần chạy đầu tiên cần tải dữ liệu và có thể tải trọng số pretrained của ResNet-18. Hãy chuẩn bị đủ dung lượng ổ đĩa và thời gian xử lý.
@@ -372,6 +374,32 @@ Chỉ resume khi cấu hình thí nghiệm, seed và mô hình khớp với chec
 
 Để giảm nguy cơ file checkpoint bị ghi dở, chương trình ghi ra file tạm rồi mới thay thế file đích. Nếu đang dùng Google Drive và kết nối không ổn định, nên lưu checkpoint trên ổ đĩa local trước rồi sao chép file hoàn chỉnh sang Drive.
 
+
+### 6.8. Đánh giá lại checkpoint cũ và phân tích Q1–Q3
+
+Các kết quả cũ không bị ghi đè nếu dùng thư mục mới:
+
+```bash
+python experiments.py --evaluate-only --checkpoint-dir /content/drive/MyDrive/hoc-sau-results --results-dir results/legacy_re_evaluation --runs erm erm_aug group_dro group_dro_aug --seeds 42
+```
+
+Lệnh trên chỉ nạp các checkpoint `*_best.pth` cũ để đánh giá lại; không huấn luyện. Nó tạo `metrics.csv`, `domain_stats.csv` và history trong thư mục `results/legacy_re_evaluation`. Đây là cách lấy lại metric 5 hospital cho các mô hình cũ. Lưu ý: GroupDRO cũ vẫn được huấn luyện với cách khởi tạo group weights cũ; đánh giá lại không sửa được quá trình huấn luyện đó.
+
+Muốn có GroupDRO được huấn luyện với trọng số khởi tạo đúng trên ba hospital seen, chạy huấn luyện mới vào thư mục khác:
+
+```bash
+python experiments.py --epochs 15 --batch-size 16 --seeds 42 123 2026 --runs erm erm_aug group_dro group_dro_aug --results-dir results/corrected_training_v1
+```
+
+Phân tích kết quả mà không train lại:
+
+```bash
+python analysis.py --results-dir results/legacy_re_evaluation
+python analysis.py --results-dir results/corrected_training_v1
+```
+
+Không dùng cùng một `--results-dir` cho hai nhóm kết quả cần giữ độc lập. Khi chạy lại cùng model/seed trong cùng thư mục, dòng tương ứng trong `metrics.csv` sẽ được cập nhật; các model/seed khác được giữ lại. Checkpoint trong thư mục đó cũng được cập nhật khi tiếp tục training.
+
 ## 7. Phương pháp thực nghiệm
 
 ### 7.1. Q1 — Performance loss do domain shift
@@ -410,10 +438,13 @@ So sánh `erm` với `group_dro`.
 
 Các chỉ số chính:
 
-- Average Group Risk.
-- Worst-Domain Risk.
-- ID Accuracy và OOD Accuracy.
-- Hiệu suất của từng domain.
+- Average Risk: trung bình không trọng số của Cross-Entropy Risk trên 5 hospital.
+- Worst Risk: Risk lớn nhất trên 5 hospital.
+- Worst Risk Seen: lớn nhất trong hospital 0, 3, 4 (domain xuất hiện khi training).
+- Worst Risk Unseen: lớn nhất trong hospital 1, 2 (domain không xuất hiện khi training).
+- ID/OOD Accuracy, AUROC và Loss; metric riêng từng hospital.
+
+Worst-hospital Risk là metric phân tích bổ sung do project định nghĩa, không phải metric chính thức của WILDS. Hospital 2 trong test chỉ dùng báo cáo cuối cùng; không dùng để chọn checkpoint hoặc điều chỉnh hyperparameter.
 
 Group DRO có thể cải thiện domain khó nhưng không bảo đảm luôn đạt kết quả OOD tốt hơn. Đây là giả thuyết cần kiểm chứng bằng thực nghiệm.
 
