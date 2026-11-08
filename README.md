@@ -117,7 +117,7 @@ Hai chế độ tiền xử lý:
 - Baseline: resize, chuyển ảnh thành tensor và chuẩn hóa.
 - Augmentation: thêm các phép biến đổi như lật ảnh, xoay ảnh và thay đổi màu sắc trong quá trình training.
 
-Validation và test sử dụng cùng pipeline đánh giá cố định để đảm bảo việc so sánh công bằng.
+Validation và test sử dụng cùng pipeline đánh giá cố định. DataLoader train được tạo riêng theo từng cấu hình: erm/group_dro không augmentation; erm_aug/group_dro_aug có augmentation. Validation/test giữ transform cố định.
 
 **Đầu ra:** các DataLoader tương ứng với từng split và metadata cần thiết cho quá trình huấn luyện.
 
@@ -171,7 +171,7 @@ Trong đó $R_g$ là loss trung bình của domain $g$.
 
 Triển khai sử dụng trọng số domain được cập nhật dựa trên loss của các nhóm trong batch. Những domain có loss cao được tăng trọng số để ảnh hưởng nhiều hơn đến mục tiêu huấn luyện.
 
-Đây là phiên bản triển khai thực nghiệm cần được kiểm tra và hiệu chỉnh trước khi dùng làm kết quả nghiên cứu chính thức. Đặc biệt, cần xử lý sự thiếu vắng domain trong batch và theo dõi độ ổn định của trọng số nhóm.
+Triển khai dùng multiplicative update cho trọng số hospital training active. Trong mỗi minibatch, trọng số được cập nhật cho hospital xuất hiện; loss minibatch được chuẩn hóa trên các hospital có mặt để tránh gradient bị thu nhỏ khi một số hospital vắng mặt. Đây là stochastic minibatch approximation của GroupDRO, không phải full-batch exact optimization; cần nêu rõ trong báo cáo và kiểm tra độ ổn định qua nhiều seed.
 
 **Đầu ra:** mô hình sau mỗi epoch và giá trị training loss.
 
@@ -438,10 +438,9 @@ So sánh `erm` với `group_dro`.
 
 Các chỉ số chính:
 
-- Average Risk: trung bình không trọng số của Cross-Entropy Risk trên 5 hospital.
-- Worst Risk: Risk lớn nhất trên 5 hospital.
-- Worst Risk Seen: lớn nhất trong hospital 0, 3, 4 (domain xuất hiện khi training).
-- Worst Risk Unseen: lớn nhất trong hospital 1, 2 (domain không xuất hiện khi training).
+- Q3 chính trên validation: Average Risk và Worst-Domain Risk tính trên H0, H3, H4 (ID validation) và H1 (OOD validation), lưu ở avg_risk_val4/worst_risk_val4.
+- H2 là held-out test, chỉ báo cáo riêng sau khi chốt mô hình. avg_risk_all5_posthoc/worst_risk_all5_posthoc là thống kê hậu nghiệm, không dùng chọn mô hình hoặc tuning.
+- Worst Risk Seen: lớn nhất trong H0, H3, H4. Worst Risk Unseen trên validation là H1; không gộp H2 test vào phép so sánh validation.
 - ID/OOD Accuracy, AUROC và Loss; metric riêng từng hospital.
 
 Worst-hospital Risk là metric phân tích bổ sung do project định nghĩa, không phải metric chính thức của WILDS. Hospital 2 trong test chỉ dùng báo cáo cuối cùng; không dùng để chọn checkpoint hoặc điều chỉnh hyperparameter.
@@ -509,3 +508,34 @@ File `.gitignore` trong repository được cấu hình để loại trừ dữ 
 
 5. Torchvision documentation.
    https://pytorch.org/vision/stable/index.html
+
+
+## 13. Cấu hình Colab cuối cùng — giữ output trên Google Drive
+
+Mount Drive và kiểm tra dataset đã giải nén:
+
+```python
+from google.colab import drive
+drive.mount('/content/drive')
+from pathlib import Path
+RESULTS = Path('/content/drive/MyDrive/hoc-sau-results')
+RESULTS.mkdir(parents=True, exist_ok=True)
+assert Path('/content/hoc-sau-camelyon17/data/camelyon17_v1.0/metadata.csv').exists()
+assert Path('/content/hoc-sau-camelyon17/data/camelyon17_v1.0/patches').exists()
+print(RESULTS)
+```
+
+Resume run GroupDRO seed 2026 đến tổng 15 epochs:
+
+```bash
+%cd /content/hoc-sau-camelyon17
+!python experiments.py --epochs 15 --batch-size 16 --runs group_dro --seeds 2026 --resume --data-dir /content/hoc-sau-camelyon17/data --results-dir /content/drive/MyDrive/hoc-sau-results
+```
+
+Nếu checkpoint ở epoch 7, chương trình tiếp tục epoch 8; nếu đã ở epoch 15, chương trình bỏ qua training và đánh giá best checkpoint. Sau đó chạy:
+
+```bash
+!python analysis.py --results-dir /content/drive/MyDrive/hoc-sau-results
+```
+
+Lưu ý: checkpoint cũ của erm_aug/group_dro_aug được tạo khi augmentation bị tắt không thể dùng làm bằng chứng Q2. Cần huấn luyện lại hai cấu hình này bằng code đã sửa. Hãy bảo toàn checkpoint cũ; chỉ ghi đè sau khi đã quyết định rõ hoặc lưu bản cũ với tên khác trong cùng thư mục Drive.
