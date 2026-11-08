@@ -59,7 +59,7 @@ def evaluate(model, dataloader, device, n_groups, hospital_idx):
     }
 
 
-def _merge_domain_metrics(parts, split_names, n_groups):
+def _merge_domain_metrics(parts, split_names, expected_groups):
     risk, acc = {}, {}
     for split_name in split_names:
         metrics = parts[split_name]
@@ -69,22 +69,23 @@ def _merge_domain_metrics(parts, split_names, n_groups):
             risk[int(hospital)] = float(value)
         for hospital, value in metrics["per_group_acc"].items():
             acc[int(hospital)] = float(value)
-    expected = set(range(n_groups))
+    expected = set(expected_groups)
     if set(risk) != expected:
         raise ValueError(
-            f"Không thu thập đủ hospital. Mong đợi {sorted(expected)}, nhận {sorted(risk)}."
+            f"Không thu thập đúng hospital. Mong đợi {sorted(expected)}, nhận {sorted(risk)}."
         )
     return risk, acc
 
 
 @torch.no_grad()
-def evaluate_validation_domains(model, splits, device, n_groups, hospital_idx, seen):
+def evaluate_validation_domains(model, splits, device, n_groups, hospital_idx, seen, parts=None):
     """Q3 chính: gộp ID-val (H0,3,4) và OOD-val (H1), tuyệt đối không dùng test H2."""
-    parts = {
-        name: evaluate(model, splits[name], device, n_groups, hospital_idx)
-        for name in ("id_val", "val")
-    }
-    risk, acc = _merge_domain_metrics(parts, ("id_val", "val"), n_groups)
+    if parts is None:
+        parts = {
+            name: evaluate(model, splits[name], device, n_groups, hospital_idx)
+            for name in ("id_val", "val")
+        }
+    risk, acc = _merge_domain_metrics(parts, ("id_val", "val"), {0, 1, 3, 4})
     seen = {int(h) for h in seen}
     unseen = set(risk) - seen
     if not seen or not unseen:
@@ -102,13 +103,14 @@ def evaluate_validation_domains(model, splits, device, n_groups, hospital_idx, s
 
 
 @torch.no_grad()
-def evaluate_all_hospitals(model, splits, device, n_groups, hospital_idx, seen):
+def evaluate_all_hospitals(model, splits, device, n_groups, hospital_idx, seen, parts=None):
     """Đánh giá hậu nghiệm 5 hospital; H2 test chỉ dùng báo cáo cuối, không tuning."""
-    parts = {
-        name: evaluate(model, splits[name], device, n_groups, hospital_idx)
-        for name in ("id_val", "val", "test")
-    }
-    risk, acc = _merge_domain_metrics(parts, ("id_val", "val", "test"), n_groups)
+    if parts is None:
+        parts = {
+            name: evaluate(model, splits[name], device, n_groups, hospital_idx)
+            for name in ("id_val", "val", "test")
+        }
+    risk, acc = _merge_domain_metrics(parts, ("id_val", "val", "test"), set(range(n_groups)))
     seen = {int(h) for h in seen}
     unseen = set(risk) - seen
     if not seen or not unseen:
