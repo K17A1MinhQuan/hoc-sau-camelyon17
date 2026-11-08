@@ -214,7 +214,7 @@ def main():
     print(f"Device: {device} | results: {results_dir.resolve()}")
 
     # Dùng split train chỉ để xác định domain seen; không truy cập nhãn test ở bước chọn mô hình.
-    splits, hospital_idx, n_groups, target_idx = get_dataloaders(
+    splits, hospital_idx, n_groups = get_dataloaders(
         batch_size=args.batch_size,
         use_augmentation=False,
         data_dir=args.data_dir,
@@ -229,7 +229,7 @@ def main():
 
     stats_path = results_dir / "domain_stats.csv"
     if not stats_path.exists():
-        get_domain_stats(splits, hospital_idx, target_idx).to_csv(stats_path, index=False)
+        get_domain_stats(splits, hospital_idx).to_csv(stats_path, index=False)
 
     rows = []
     for run_name in args.runs:
