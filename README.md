@@ -539,3 +539,40 @@ Nếu checkpoint ở epoch 7, chương trình tiếp tục epoch 8; nếu đã �
 ```
 
 Lưu ý: checkpoint cũ của erm_aug/group_dro_aug được tạo khi augmentation bị tắt không thể dùng làm bằng chứng Q2. Cần huấn luyện lại hai cấu hình này bằng code đã sửa. Hãy bảo toàn checkpoint cũ; chỉ ghi đè sau khi đã quyết định rõ hoặc lưu bản cũ với tên khác trong cùng thư mục Drive.
+
+
+### 13.1. Bảo toàn checkpoint cũ trước khi huấn luyện corrected
+
+Checkpoint cũ thiếu thông tin cấu hình và có thể được tạo khi augmentation chưa bật hoặc GroupDRO dùng cách cập nhật cũ. Phiên bản code mới từ chối resume các checkpoint không có `run_config` tương thích để tránh ghép nửa quá trình huấn luyện bằng hai thuật toán khác nhau.
+
+Sao lưu file ngay trong cùng thư mục (không tạo thư mục kết quả mới):
+
+```python
+from pathlib import Path
+import shutil
+
+root = Path('/content/drive/MyDrive/hoc-sau-results')
+patterns = [
+    'erm_aug_seed*_best.pth', 'erm_aug_seed*_latest.pt', 'erm_aug_seed*_history.json',
+    'group_dro_seed*_best.pth', 'group_dro_seed*_latest.pt', 'group_dro_seed*_history.json',
+    'group_dro_aug_seed*_best.pth', 'group_dro_aug_seed*_latest.pt', 'group_dro_aug_seed*_history.json',
+]
+for pattern in patterns:
+    for src in root.glob(pattern):
+        dst = src.with_name(src.name + '.legacy')
+        if not dst.exists():
+            shutil.copy2(src, dst)
+        print(src.name, '->', dst.name)
+```
+
+Sau khi sao lưu, chạy các cấu hình bị ảnh hưởng từ đầu (không thêm `--resume`), cùng seed để so sánh paired:
+
+```bash
+!python experiments.py --epochs 15 --batch-size 16 --seeds 42 123 2026 --runs erm_aug group_dro group_dro_aug --data-dir /content/hoc-sau-camelyon17/data --results-dir /content/drive/MyDrive/hoc-sau-results
+```
+
+ERM baseline cũ có thể giữ lại vì pipeline ERM không thay đổi. Các file `.legacy` vẫn nằm trong chính thư mục Drive, không bị ghi đè. Sau khi corrected runs hoàn tất:
+
+```bash
+!python analysis.py --results-dir /content/drive/MyDrive/hoc-sau-results
+```
