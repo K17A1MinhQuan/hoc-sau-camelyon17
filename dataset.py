@@ -73,16 +73,18 @@ def _prepare_archive(data_dir, archive_path=None):
     print("[dataset] WILDS có thể tải dữ liệu nếu download=True; hãy kiểm tra dung lượng.")
 
 
-def get_domain_stats(splits, hospital_idx, target_idx):
+def get_domain_stats(splits, hospital_idx):
     """Thống kê số mẫu và tỷ lệ tumor theo split/hospital."""
     rows = []
     for split_name, loader in splits.items():
         metadata = torch.as_tensor(loader.dataset.metadata_array)
+        targets = torch.as_tensor(loader.dataset.y_array).reshape(-1).float()
         if metadata.ndim != 2:
             raise ValueError(f"metadata_array của split {split_name} không phải ma trận 2D.")
+        if len(metadata) != len(targets):
+            raise ValueError(f"Metadata và target không khớp số mẫu ở split {split_name}.")
 
         hospital_values = metadata[:, hospital_idx].long()
-        targets = metadata[:, target_idx].float()
         for hospital in torch.unique(hospital_values).tolist():
             mask = hospital_values == int(hospital)
             rows.append({
@@ -113,11 +115,7 @@ def get_dataloaders(
     fields = list(dataset.metadata_fields)
     if "hospital" not in fields:
         raise ValueError(f"Không tìm thấy metadata field 'hospital': {fields}")
-    if "y" not in fields:
-        raise ValueError(f"Không tìm thấy metadata field 'y': {fields}")
-
     hospital_idx = fields.index("hospital")
-    target_idx = fields.index("y")
     n_groups = 5
 
     splits = {}
@@ -140,4 +138,4 @@ def get_dataloaders(
             persistent_workers=(num_workers > 0),
         )
 
-    return splits, hospital_idx, n_groups, target_idx
+    return splits, hospital_idx, n_groups
