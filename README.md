@@ -370,7 +370,7 @@ Ví dụ tiếp tục thí nghiệm ERM đến epoch 10:
 python experiments.py --epochs 10 --batch-size 16 --runs erm --resume --archive-path /content/drive/MyDrive/camelyon17_v1.0.tar.gz
 ```
 
-Chỉ resume khi cấu hình thí nghiệm, seed và mô hình khớp với checkpoint. Nếu checkpoint `latest` bị lỗi hoặc không đọc được, phiên bản code đã bổ sung xử lý dự phòng để thử checkpoint `best` nếu có thể; nếu không có checkpoint hợp lệ thì cần bắt đầu lại. Hãy sao lưu checkpoint lỗi trước khi thử khôi phục.
+Chỉ resume khi cấu hình thí nghiệm, seed và mô hình khớp với checkpoint. Nếu checkpoint `latest` bị lỗi hoặc không đọc được, chương trình hiện dừng và báo lỗi; nó không tự động resume từ `best.pth` vì file này không chứa optimizer và trạng thái GroupDRO. Hãy giữ nguyên file lỗi, sao lưu trong cùng thư mục Drive rồi quyết định khôi phục thủ công.
 
 Để giảm nguy cơ file checkpoint bị ghi dở, chương trình ghi ra file tạm rồi mới thay thế file đích. Nếu đang dùng Google Drive và kết nối không ổn định, nên lưu checkpoint trên ổ đĩa local trước rồi sao chép file hoàn chỉnh sang Drive.
 
