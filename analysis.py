@@ -40,12 +40,16 @@ def main():
     print("\nQ1 — Domain shift: ID validation so với OOD validation")
     for model in sorted(df.model.unique()):
         subset = df[df.model == model]
+        d_acc = subset["id_accuracy"] - subset["ood_accuracy"]
+        d_auc = subset["id_auroc"] - subset["ood_auroc"]
+        d_loss = subset["ood_loss"] - subset["id_loss"]
+        rel_acc = d_acc / subset["id_accuracy"].replace(0, np.nan) * 100
         print(
             f"{model:16s} ID acc={mean_std(subset.id_accuracy)} "
             f"OOD acc={mean_std(subset.ood_accuracy)} "
-            f"ID AUROC={mean_std(subset.id_auroc)} "
-            f"OOD AUROC={mean_std(subset.ood_auroc)} "
-            f"ID loss={mean_std(subset.id_loss)} OOD loss={mean_std(subset.ood_loss)}"
+            f"DeltaAcc={mean_std(d_acc)} "
+            f"relative Acc drop={mean_std(rel_acc)}% "
+            f"DeltaAUROC={mean_std(d_auc)} DeltaLoss(OOD-ID)={mean_std(d_loss)}"
         )
 
     print("\nQ2 — Paired augmentation deltas (augmentation - baseline)")
