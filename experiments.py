@@ -224,7 +224,7 @@ def run_experiment(
 
 def main():
     parser = argparse.ArgumentParser(description="Camelyon17-WILDS multi-hospital experiments")
-    parser.add_argument("--epochs", type=int, default=5)
+    parser.add_argument("--epochs", type=int, default=15)
     parser.add_argument("--batch-size", type=int, default=16)
     parser.add_argument("--lr", type=float, default=1e-4)
     parser.add_argument("--seeds", type=int, nargs="+", default=[42])
