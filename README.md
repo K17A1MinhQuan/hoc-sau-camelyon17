@@ -117,7 +117,7 @@ Hai chế độ tiền xử lý:
 - Baseline: resize, chuyển ảnh thành tensor và chuẩn hóa.
 - Augmentation: thêm các phép biến đổi như lật ảnh, xoay ảnh và thay đổi màu sắc trong quá trình training.
 
-Validation và test sử dụng cùng pipeline đánh giá cố định để đảm bảo việc so sánh công bằng.
+Validation và test sử dụng cùng pipeline đánh giá cố định. DataLoader train được tạo riêng theo từng cấu hình: erm/group_dro không augmentation; erm_aug/group_dro_aug có augmentation. Validation/test giữ transform cố định.
 
 **Đầu ra:** các DataLoader tương ứng với từng split và metadata cần thiết cho quá trình huấn luyện.
 
@@ -171,7 +171,7 @@ Trong đó $R_g$ là loss trung bình của domain $g$.
 
 Triển khai sử dụng trọng số domain được cập nhật dựa trên loss của các nhóm trong batch. Những domain có loss cao được tăng trọng số để ảnh hưởng nhiều hơn đến mục tiêu huấn luyện.
 
-Đây là phiên bản triển khai thực nghiệm cần được kiểm tra và hiệu chỉnh trước khi dùng làm kết quả nghiên cứu chính thức. Đặc biệt, cần xử lý sự thiếu vắng domain trong batch và theo dõi độ ổn định của trọng số nhóm.
+Triển khai dùng multiplicative update cho trọng số hospital training active. Trong mỗi minibatch, trọng số được cập nhật cho hospital xuất hiện; loss minibatch được chuẩn hóa trên các hospital có mặt để tránh gradient bị thu nhỏ khi một số hospital vắng mặt. Đây là stochastic minibatch approximation của GroupDRO, không phải full-batch exact optimization; cần nêu rõ trong báo cáo và kiểm tra độ ổn định qua nhiều seed.
 
 **Đầu ra:** mô hình sau mỗi epoch và giá trị training loss.
 
@@ -370,7 +370,7 @@ Ví dụ tiếp tục thí nghiệm ERM đến epoch 10:
 python experiments.py --epochs 10 --batch-size 16 --runs erm --resume --archive-path /content/drive/MyDrive/camelyon17_v1.0.tar.gz
 ```
 
-Chỉ resume khi cấu hình thí nghiệm, seed và mô hình khớp với checkpoint. Nếu checkpoint `latest` bị lỗi hoặc không đọc được, phiên bản code đã bổ sung xử lý dự phòng để thử checkpoint `best` nếu có thể; nếu không có checkpoint hợp lệ thì cần bắt đầu lại. Hãy sao lưu checkpoint lỗi trước khi thử khôi phục.
+Chỉ resume khi cấu hình thí nghiệm, seed và mô hình khớp với checkpoint. Nếu checkpoint `latest` bị lỗi hoặc không đọc được, chương trình hiện dừng và báo lỗi; nó không tự động resume từ `best.pth` vì file này không chứa optimizer và trạng thái GroupDRO. Hãy giữ nguyên file lỗi, sao lưu trong cùng thư mục Drive rồi quyết định khôi phục thủ công.
 
 Để giảm nguy cơ file checkpoint bị ghi dở, chương trình ghi ra file tạm rồi mới thay thế file đích. Nếu đang dùng Google Drive và kết nối không ổn định, nên lưu checkpoint trên ổ đĩa local trước rồi sao chép file hoàn chỉnh sang Drive.
 
@@ -438,10 +438,9 @@ So sánh `erm` với `group_dro`.
 
 Các chỉ số chính:
 
-- Average Risk: trung bình không trọng số của Cross-Entropy Risk trên 5 hospital.
-- Worst Risk: Risk lớn nhất trên 5 hospital.
-- Worst Risk Seen: lớn nhất trong hospital 0, 3, 4 (domain xuất hiện khi training).
-- Worst Risk Unseen: lớn nhất trong hospital 1, 2 (domain không xuất hiện khi training).
+- Q3 chính trên validation: Average Risk và Worst-Domain Risk tính trên H0, H3, H4 (ID validation) và H1 (OOD validation), lưu ở avg_risk_val4/worst_risk_val4.
+- H2 là held-out test, chỉ báo cáo riêng sau khi chốt mô hình. avg_risk_all5_posthoc/worst_risk_all5_posthoc là thống kê hậu nghiệm, không dùng chọn mô hình hoặc tuning.
+- Worst Risk Seen: lớn nhất trong H0, H3, H4. Worst Risk Unseen trên validation là H1; không gộp H2 test vào phép so sánh validation.
 - ID/OOD Accuracy, AUROC và Loss; metric riêng từng hospital.
 
 Worst-hospital Risk là metric phân tích bổ sung do project định nghĩa, không phải metric chính thức của WILDS. Hospital 2 trong test chỉ dùng báo cáo cuối cùng; không dùng để chọn checkpoint hoặc điều chỉnh hyperparameter.
@@ -509,3 +508,71 @@ File `.gitignore` trong repository được cấu hình để loại trừ dữ 
 
 5. Torchvision documentation.
    https://pytorch.org/vision/stable/index.html
+
+
+## 13. Cấu hình Colab cuối cùng — giữ output trên Google Drive
+
+Mount Drive và kiểm tra dataset đã giải nén:
+
+```python
+from google.colab import drive
+drive.mount('/content/drive')
+from pathlib import Path
+RESULTS = Path('/content/drive/MyDrive/hoc-sau-results')
+RESULTS.mkdir(parents=True, exist_ok=True)
+assert Path('/content/hoc-sau-camelyon17/data/camelyon17_v1.0/metadata.csv').exists()
+assert Path('/content/hoc-sau-camelyon17/data/camelyon17_v1.0/patches').exists()
+print(RESULTS)
+```
+
+Với checkpoint được tạo bằng phiên bản code mới (có run_config tương thích), có thể resume đến tổng 15 epochs:
+
+```bash
+%cd /content/hoc-sau-camelyon17
+!python experiments.py --epochs 15 --batch-size 16 --runs group_dro --seeds 2026 --resume --data-dir /content/hoc-sau-camelyon17/data --results-dir /content/drive/MyDrive/hoc-sau-results
+```
+
+Nếu checkpoint mới ở epoch 7, chương trình tiếp tục epoch 8; nếu đã ở epoch 15, chương trình bỏ qua training và đánh giá best checkpoint. Checkpoint legacy thiếu run_config sẽ bị từ chối resume có chủ đích; hãy làm theo mục 13.1 để sao lưu rồi train corrected từ đầu. Sau đó chạy:
+
+```bash
+!python analysis.py --results-dir /content/drive/MyDrive/hoc-sau-results
+```
+
+Lưu ý: checkpoint cũ của erm_aug/group_dro_aug được tạo khi augmentation bị tắt không thể dùng làm bằng chứng Q2. Cần huấn luyện lại hai cấu hình này bằng code đã sửa. Hãy bảo toàn checkpoint cũ; chỉ ghi đè sau khi đã quyết định rõ hoặc lưu bản cũ với tên khác trong cùng thư mục Drive.
+
+
+### 13.1. Bảo toàn checkpoint cũ trước khi huấn luyện corrected
+
+Checkpoint cũ thiếu thông tin cấu hình và có thể được tạo khi augmentation chưa bật hoặc GroupDRO dùng cách cập nhật cũ. Phiên bản code mới từ chối resume các checkpoint không có `run_config` tương thích để tránh ghép nửa quá trình huấn luyện bằng hai thuật toán khác nhau.
+
+Sao lưu file ngay trong cùng thư mục (không tạo thư mục kết quả mới):
+
+```python
+from pathlib import Path
+import shutil
+
+root = Path('/content/drive/MyDrive/hoc-sau-results')
+patterns = [
+    'erm_aug_seed*_best.pth', 'erm_aug_seed*_latest.pt', 'erm_aug_seed*_history.json',
+    'group_dro_seed*_best.pth', 'group_dro_seed*_latest.pt', 'group_dro_seed*_history.json',
+    'group_dro_aug_seed*_best.pth', 'group_dro_aug_seed*_latest.pt', 'group_dro_aug_seed*_history.json',
+]
+for pattern in patterns:
+    for src in root.glob(pattern):
+        dst = src.with_name(src.name + '.legacy')
+        if not dst.exists():
+            shutil.copy2(src, dst)
+        print(src.name, '->', dst.name)
+```
+
+Sau khi sao lưu, chạy các cấu hình bị ảnh hưởng từ đầu (không thêm `--resume`), cùng seed để so sánh paired:
+
+```bash
+!python experiments.py --epochs 15 --batch-size 16 --seeds 42 123 2026 --runs erm_aug group_dro group_dro_aug --data-dir /content/hoc-sau-camelyon17/data --results-dir /content/drive/MyDrive/hoc-sau-results
+```
+
+ERM baseline cũ có thể giữ lại vì pipeline ERM không thay đổi. Các file `.legacy` vẫn nằm trong chính thư mục Drive, không bị ghi đè. Sau khi corrected runs hoàn tất:
+
+```bash
+!python analysis.py --results-dir /content/drive/MyDrive/hoc-sau-results
+```
