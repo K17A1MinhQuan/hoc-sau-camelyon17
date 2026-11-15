@@ -1,168 +1,214 @@
-
-"""Phân tích Q1-Q3 từ metrics.csv và *_history.json; không huấn luyện lại."""
+"""Camelyon17 final analysis: Q1/Q2/Q3; does not train or modify metrics."""
 import argparse
 import json
+import re
+import warnings
 from pathlib import Path
- 
+
 import matplotlib
-matplotlib.use("Agg")
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
- 
- 
-def mean_std(series):
-    values = pd.to_numeric(series, errors="coerce").dropna()
-    if len(values) == 0:
-        return "nan"
-    if len(values) == 1:
-        return f"{values.mean():.4f} ± n/a"
-    return f"{values.mean():.4f} ± {values.std(ddof=1):.4f}"
- 
- 
-def paired_delta(df, baseline, augmented, metric):
-    a = df[df.model == baseline][["seed", metric]].rename(columns={metric: "baseline"})
-    b = df[df.model == augmented][["seed", metric]].rename(columns={metric: "augmented"})
-    merged = a.merge(b, on="seed", how="inner")
-    if merged.empty:
-        return float("nan"), float("nan"), 0
-    delta = merged["augmented"] - merged["baseline"]
-    return float(delta.mean()), float(delta.std(ddof=1)) if len(delta) > 1 else float("nan"), len(delta)
- 
- 
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--results-dir", default="results/corrected_v1")
-    args = parser.parse_args()
-    root = Path(args.results_dir)
-    metrics_path = root / "metrics.csv"
-    if not metrics_path.exists():
-        raise FileNotFoundError(metrics_path)
-    df = pd.read_csv(metrics_path)
-    if df.empty:
-        raise ValueError(f"{metrics_path} không có dòng kết quả.")
- 
-    print("\nQ1 — Domain shift: ID validation so với OOD validation (Hospital 1)")
-    for model in sorted(df.model.unique()):
-        subset = df[df.model == model]
-        d_acc = subset["id_accuracy"] - subset["ood_accuracy"]
-        d_auc = subset["id_auroc"] - subset["ood_auroc"]
-        d_loss = subset["ood_loss"] - subset["id_loss"]
-        rel_acc = d_acc / subset["id_accuracy"].replace(0, np.nan) * 100
-        print(
-            f"{model:16s} ID acc={mean_std(subset.id_accuracy)} "
-            f"OOD acc={mean_std(subset.ood_accuracy)} "
-            f"ID-OOD gap={mean_std(d_acc)} "
-            f"relative accuracy drop={mean_std(rel_acc)}% "
-            f"ID-OOD AUROC gap={mean_std(d_auc)} "
-            f"OOD-ID loss change={mean_std(d_loss)}"
-        )
- 
-    print("\nQ2 — Paired augmentation deltas (augmentation - baseline)")
-    for baseline, augmented in [("erm", "erm_aug"), ("group_dro", "group_dro_aug")]:
-        for metric in ["ood_accuracy", "ood_auroc", "ood_loss", "id_accuracy", "id_loss"]:
-            delta, std, n = paired_delta(df, baseline, augmented, metric)
-            print(f"{baseline} -> {augmented}: {metric}: delta={delta:+.4f}, std={std:.4f}, paired_seeds={n}")
- 
-    print("\nQ3 — Average Risk và Worst-Domain Risk trên validation domains")
-    if "avg_risk_val4" in df.columns:
-        risk_cols = ["avg_risk_val4", "worst_risk_val4",
-                     "worst_risk_seen_val4", "worst_risk_unseen_val4"]
-        for model in sorted(df.model.unique()):
-            subset = df[df.model == model]
-            print(f"{model:16s} " + " | ".join(f"{c}={mean_std(subset[c])}" for c in risk_cols))
-        print("Ghi chú: Q3 validation chỉ gồm H0,H3,H4 (ID-val) và H1 (OOD-val), không dùng test H2.")
+
+MODELS = ['erm', 'erm_aug', 'group_dro', 'group_dro_aug']
+LABELS = {'erm':'ERM', 'erm_aug':'ERM + Aug', 'group_dro':'Group DRO', 'group_dro_aug':'Group DRO + Aug'}
+HOSPITALS = [0, 1, 3, 4]
+RISK = ['avg_risk_val4', 'worst_risk_val4']
+HACC = [f'acc_val_h{x}' for x in HOSPITALS]
+COLORS = {'Train':'#16a34a', 'ID validation':'#2563eb', 'OOD validation':'#ea580c'}
+
+
+def numeric(df, columns):
+    for c in columns:
+        if c not in df:
+            df[c] = np.nan
+        df[c] = pd.to_numeric(df[c], errors='coerce')
+    return df
+
+
+def validate(df):
+    for c in ['model', 'seed']:
+        if c not in df:
+            raise ValueError(f'Missing required column: {c}')
+    if df.duplicated(['model', 'seed']).any():
+        raise ValueError('Duplicate model/seed rows in metrics.csv; resolve before analysis.')
+    return numeric(df, ['id_accuracy','ood_accuracy','id_auroc','ood_auroc','id_loss','ood_loss',
+                        'test_accuracy','test_auroc',*RISK,*HACC])
+
+
+def save(fig, path):
+    fig.savefig(path, dpi=190, bbox_inches='tight')
+    plt.close(fig)
+    print('Saved:', path.name)
+
+
+def bar_chart(df, cols, labels, title, ylabel, dest, ylim=None):
+    means = df.groupby('model')[cols].mean().reindex(MODELS)
+    counts = df.groupby('model')[cols].count().reindex(MODELS).fillna(0).astype(int)
+    fig, ax = plt.subplots(figsize=(11, 5.6))
+    x = np.arange(len(MODELS))
+    width = 0.8 / len(cols)
+    palette = ['#2563eb', '#ea580c', '#16a34a', '#a855f7', '#64748b']
+    values = means.to_numpy(dtype=float)
+    for j, col in enumerate(cols):
+        pos = x - .4 + width*(j+.5)
+        vals = values[:,j]
+        bars = ax.bar(pos, np.nan_to_num(vals, nan=0), width*.92,
+                      color=palette[j], label=labels[j])
+        for i, b in enumerate(bars):
+            n = counts.iloc[i,j]
+            if n == 0:
+                b.set_alpha(0)
+                ax.text(b.get_x()+b.get_width()/2, 0.015 if ylim else 0,
+                        'N/A', ha='center', va='bottom', fontsize=8, rotation=90)
+            else:
+                ax.annotate(f'{vals[i]:.3f}\n(n={n})',
+                            (b.get_x()+b.get_width()/2,b.get_height()),
+                            xytext=(0,3), textcoords='offset points',
+                            ha='center', va='bottom', fontsize=8)
+    ax.set_xticks(x, [LABELS[m] for m in MODELS])
+    ax.set_ylabel(ylabel)
+    ax.set_title(title)
+    if ylim:
+        ax.set_ylim(*ylim)
     else:
-        print("CẢNH BÁO: metrics.csv cũ không có avg_risk_val4/worst_risk_val4.")
-        print("Các cột avg_risk/worst_risk cũ gộp cả test H2, chỉ được xem là hậu nghiệm, không dùng làm Q3 chính.")
-        for model in sorted(df.model.unique()):
-            subset = df[df.model == model]
-            print(f"{model:16s} avg_all5={mean_std(subset.avg_risk)} worst_all5={mean_std(subset.worst_risk)}")
- 
-    # Q1
-    summary = df.groupby("model")[["id_accuracy", "ood_accuracy"]].mean()
-    ax = summary.plot(kind="bar", figsize=(9, 5), rot=20, width=0.8)
-    ax.set_ylabel("Accuracy")
-    ax.set_title("ID Validation vs OOD Validation Accuracy")
-    ax.set_ylim(0, 1.08)
-    for c in ax.containers:  # ghi số lên đầu mỗi cột
-        ax.bar_label(c, fmt="%.3f", fontsize=8, padding=2)
-    ax.set_xlabel("")
-    ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.15), ncol=5, frameon=False)
-    plt.tight_layout()
-    plt.savefig(root / "q1_id_ood_accuracy.png", dpi=160)
-    plt.close()
- 
-    # Q3 primary chart: validation-only risk.
-    if "avg_risk_val4" in df.columns:
-        cols = ["avg_risk_val4", "worst_risk_val4"]
-        ax = df.groupby("model")[cols].mean().plot(kind="bar", figsize=(9, 5), rot=20, width=0.8)
-        ax.set_ylabel("Cross-Entropy Risk")
-        ax.set_title("Average Risk vs Worst-Domain Risk (Validation Hospitals)")
-        for c in ax.containers:  # ghi số lên đầu mỗi cột
-            ax.bar_label(c, fmt="%.3f", fontsize=8, padding=2)
-        ax.set_xlabel("")
-        ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.15), ncol=5, frameon=False)
-        plt.tight_layout()
-        plt.savefig(root / "q3_validation_risk.png", dpi=160)
-        plt.close()
- 
-        val_acc_cols = [f"acc_val_h{h}" for h in [0, 1, 3, 4] if f"acc_val_h{h}" in df.columns]
-        if val_acc_cols:
-            ax = df.groupby("model")[val_acc_cols].mean().plot(kind="bar", figsize=(13, 5), rot=20, width=0.8)
-            ax.set_ylabel("Accuracy")
-            ax.set_title("Validation Accuracy by Hospital (H0, H1, H3, H4)")
-            ax.set_ylim(0, 1.08)
-            for c in ax.containers:  # ghi số lên đầu mỗi cột
-                ax.bar_label(c, fmt="%.3f", fontsize=7, padding=2)
-            ax.set_xlabel("")
-            ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.15), ncol=5, frameon=False)
-            plt.tight_layout()
-            plt.savefig(root / "q3_validation_hospital_accuracy.png", dpi=160)
-            plt.close()
- 
-    # Post-hoc five-hospital chart is clearly labeled and never used for selection.
-    acc_cols = [f"acc_h{h}" for h in range(5) if f"acc_h{h}" in df.columns]
-    if acc_cols:
-        ax = df.groupby("model")[acc_cols].mean().plot(kind="bar", figsize=(13, 5), rot=20, width=0.8)
-        ax.set_ylabel("Accuracy")
-        ax.set_title("Post-hoc Accuracy by Hospital (includes held-out test H2)")
-        ax.set_ylim(0, 1.08)
-        for c in ax.containers:  # ghi số lên đầu mỗi cột
-            ax.bar_label(c, fmt="%.3f", fontsize=7, padding=2)
-        ax.set_xlabel("")
-        ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.15), ncol=5, frameon=False)
-        plt.tight_layout()
-        plt.savefig(root / "q3_all5_posthoc_accuracy.png", dpi=160)
-        plt.close()
- 
-    # Loss histories
-    fig, ax = plt.subplots(figsize=(10, 6))
-    for history_file in sorted(root.glob("*_history.json")):
-        try:
-            history = json.loads(history_file.read_text(encoding="utf-8"))
-            train_loss = history.get("train_loss", [])
-            id_loss = [x.get("loss", np.nan) for x in history.get("id_val", [])]
-            ood_loss = [x.get("loss", np.nan) for x in history.get("ood_val", [])]
-            n = min(len(train_loss), len(id_loss), len(ood_loss))
-            if n:
-                epochs = np.arange(1, n + 1)
-                line, = ax.plot(epochs, train_loss[:n], ":", label=f"{history_file.stem} train")
-                ax.plot(epochs, id_loss[:n], "--", color=line.get_color(), label=f"{history_file.stem} ID val")
-                ax.plot(epochs, ood_loss[:n], "-", color=line.get_color(), label=f"{history_file.stem} OOD val")
-        except (OSError, json.JSONDecodeError, TypeError):
+        mx = np.nanmax(values) if np.isfinite(values).any() else 1
+        ax.set_ylim(0, max(.1, mx*1.25))
+    ax.legend(loc='upper center', bbox_to_anchor=(.5,-.12), ncol=len(cols), frameon=False)
+    ax.grid(axis='y', alpha=.15)
+    fig.tight_layout()
+    save(fig, dest)
+
+
+def q2_chart(df, root):
+    pairs = [('erm','erm_aug'), ('group_dro','group_dro_aug')]
+    fig, ax = plt.subplots(figsize=(8.6,5))
+    for i,(base,aug) in enumerate(pairs):
+        a = df[df.model==base][['seed','ood_accuracy']].rename(columns={'ood_accuracy':'a'})
+        b = df[df.model==aug][['seed','ood_accuracy']].rename(columns={'ood_accuracy':'b'})
+        merged = a.merge(b,on='seed').dropna()
+        if merged.empty:
+            ax.text(i,0,'N/A',ha='center',va='bottom')
             continue
-    ax.set_xlabel("Epoch")
-    ax.set_ylabel("Cross-Entropy Loss")
-    ax.set_title("Train (:) / ID val (--) / OOD val (-) Loss")
-    if ax.lines:
-        ax.legend(fontsize=7, loc="center left", bbox_to_anchor=(1.01, 0.5), frameon=False)
-    plt.tight_layout()
-    plt.savefig(root / "q1_loss_curves.png", dpi=160)
-    plt.close()
- 
-    print(f"\nAnalysis outputs saved in {root.resolve()}")
- 
- 
-if __name__ == "__main__":
+        delta = (merged.b-merged.a)*100
+        mean = delta.mean()
+        ax.bar(i,mean,color='#16a34a' if mean>=0 else '#ea580c',width=.55)
+        ax.text(i,mean, f'{mean:+.2f} pp\n(n={len(delta)})',ha='center',
+                va='bottom' if mean>=0 else 'top',fontsize=10)
+        print(f'Q2 {base} -> {aug}: mean OOD delta={mean:+.3f} pp, paired seeds={len(delta)}')
+    ax.axhline(0,color='#64748b',lw=1)
+    ax.set_xticks([0,1], ['ERM + Aug vs ERM','Group DRO + Aug vs Group DRO'])
+    ax.set_ylabel('OOD accuracy change (percentage points)')
+    ax.set_title('Q2: Paired augmentation effect on OOD validation')
+    ax.grid(axis='y',alpha=.15)
+    fig.tight_layout()
+    save(fig,root/'q2_augmentation_ood_delta.png')
+
+
+def loss_charts(root):
+    grouped = {m: {'Train':[], 'ID validation':[], 'OOD validation':[]} for m in MODELS}
+    pattern = re.compile(r'^(erm|erm_aug|group_dro|group_dro_aug)_seed(\d+)_history\.json$')
+    for path in sorted(root.glob('*_history.json')):
+        match = pattern.fullmatch(path.name)
+        if not match:
+            continue
+        try:
+            h = json.loads(path.read_text(encoding='utf-8'))
+            series = {'Train':h.get('train_loss',[]),
+                      'ID validation':[v.get('loss',np.nan) for v in h.get('id_val',[])],
+                      'OOD validation':[v.get('loss',np.nan) for v in h.get('ood_val',[])]}
+            for key, values in series.items():
+                arr = np.asarray(values,dtype=float)
+                if arr.size:
+                    grouped[match.group(1)][key].append(arr)
+        except (ValueError,TypeError,OSError,KeyError,AttributeError) as e:
+            warnings.warn(f'Invalid history {path.name}: {e}')
+    fig,axes = plt.subplots(2,2,figsize=(13,8),sharex=True,sharey=True)
+    all_values=[]
+    for ax,model in zip(axes.flat,MODELS):
+        ax.set_title(LABELS[model])
+        for key,arrays in grouped[model].items():
+            if not arrays:
+                continue
+            length = max(map(len,arrays))
+            matrix = np.full((len(arrays),length),np.nan)
+            for i,a in enumerate(arrays):
+                matrix[i,:len(a)] = a
+            with warnings.catch_warnings():
+                warnings.simplefilter('ignore',RuntimeWarning)
+                mean = np.nanmean(matrix,axis=0)
+                std = np.nanstd(matrix,axis=0,ddof=1) if len(arrays)>1 else np.zeros(length)
+            valid = np.isfinite(mean)
+            epochs = np.arange(1,length+1)
+            ax.plot(epochs[valid],mean[valid],color=COLORS[key],lw=2,label=f'{key} (n={len(arrays)})')
+            if len(arrays)>1:
+                lower=np.maximum(0,mean-std)
+                ax.fill_between(epochs,lower,mean+std,where=valid,color=COLORS[key],alpha=.10)
+            all_values.extend(mean[valid].tolist())
+        if not any(grouped[model].values()):
+            ax.text(.5,.5,'No history available',transform=ax.transAxes,ha='center')
+        ax.grid(alpha=.18)
+        if ax.lines:
+            ax.legend(fontsize=8,loc='upper right')
+    if all_values:
+        high=np.nanpercentile(all_values,99.5)
+        axes[0,0].set_ylim(0,max(.1,high*1.2))
+    for ax in axes[-1,:]: ax.set_xlabel('Epoch')
+    for ax in axes[:,0]: ax.set_ylabel('Cross-entropy loss')
+    fig.suptitle('Q1: Training and validation loss by model (mean across seeds; shaded ±1 SD)')
+    fig.tight_layout()
+    save(fig,root/'q1_loss_curves.png')
+
+
+def main():
+    p=argparse.ArgumentParser()
+    p.add_argument('--results-dir',default='results/corrected_v1')
+    args=p.parse_args()
+    root=Path(args.results_dir)
+    df=validate(pd.read_csv(root/'metrics.csv'))
+    summary=[]
+    for m in MODELS:
+        sub=df[df.model==m]
+        if sub.empty:
+            warnings.warn(f'No metrics for {m}')
+            continue
+        gaps=(sub.id_accuracy-sub.ood_accuracy)*100
+        row={'model':m,'n_seeds':len(sub),'id_accuracy_mean':sub.id_accuracy.mean(),
+             'ood_accuracy_mean':sub.ood_accuracy.mean(),
+             'id_ood_gap_pp_mean':gaps.mean(),
+             'avg_risk_val4_mean':sub.avg_risk_val4.mean(),
+             'worst_risk_val4_mean':sub.worst_risk_val4.mean(),
+             'q3_valid_seeds':int(sub[RISK+HACC].notna().all(axis=1).sum())}
+        summary.append(row)
+        print(f"{m}: Q1 gap={row['id_ood_gap_pp_mean']:.2f} pp; Q3 complete={row['q3_valid_seeds']}/{len(sub)} seeds")
+    pd.DataFrame(summary).to_csv(root/'analysis_summary.csv',index=False)
+    missing=df[['model','seed',*RISK,*HACC]].copy()
+    missing['q3_complete']=missing[RISK+HACC].notna().all(axis=1)
+    missing[['model','seed','q3_complete']].to_csv(root/'q3_data_completeness.csv',index=False)
+    if not missing.q3_complete.all():
+        print('WARNING: Q3 is incomplete. Missing results are labeled N/A, not zero.')
+        print(missing.loc[~missing.q3_complete,['model','seed']].to_string(index=False))
+    bar_chart(df,['id_accuracy','ood_accuracy'],['ID validation','OOD validation'],
+              'Q1: ID vs OOD validation accuracy','Accuracy',root/'q1_id_ood_accuracy.png',ylim=(0,1.12))
+    q2_chart(df,root)
+    if missing.q3_complete.any():
+        bar_chart(df,RISK,['Average risk','Worst-domain risk'],
+                  'Q3: Validation risk (H0, H1, H3, H4; excludes test H2)',
+                  'Cross-entropy risk',root/'q3_validation_risk.png')
+        bar_chart(df,HACC,['H0 (ID)','H1 (OOD)','H3 (ID)','H4 (ID)'],
+                  'Q3: Validation accuracy by hospital (excludes test H2)',
+                  'Accuracy',root/'q3_validation_hospital_accuracy.png',ylim=(0,1.15))
+    else:
+        print('WARNING: No Q3 validation results; skipping Q3 figures.')
+    all5=[f'acc_h{i}' for i in range(5)]
+    if all(c in df.columns for c in all5):
+        numeric(df,all5)
+        bar_chart(df,all5,[f'H{i}' + (' (TEST)' if i==2 else '') for i in range(5)],
+                  'Post-hoc only: all five hospitals (includes held-out test H2)',
+                  'Accuracy',root/'q3_all5_posthoc_accuracy.png',ylim=(0,1.15))
+    loss_charts(root)
+    print('Completed. Source metrics.csv was not modified.')
+
+if __name__=='__main__':
     main()
